@@ -1,6 +1,7 @@
 from __future__ import print_function 
 from selenium import webdriver
 from lxml import html
+import os
 import requests
 import random
 import time
@@ -11,11 +12,11 @@ searchurl = "http://www.texasbarcle.com/CLE/TSCSearchResults.asp"
 
 
 class CaseInfo:
-	def __init__(self,caseid,casename,videourl):
+	def __init__(self,caseid,casename,videourl,isbrokenurl):
 		self.caseid = caseid
 		self.casename = casename
 		self.videourl = videourl
-
+		self.isbrokenurl = isbrokenurl
 
 
 
@@ -25,22 +26,23 @@ class CaseInfo:
 
 
 def getvideosourceinfo(urltoscrape):
-	dcap = dict(webdriver.DesiredCapabilities.PHANTOMJS)
-	dcap["phantomjs.page.settings.userAgent"] = (
-	     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/53 "
-	     "(KHTML, like Gecko) Chrome/15.0.87")
+
 
 
 	driver = webdriver.Chrome(executable_path = webdriverlocation)
-	driver.get(urltoscrape)
-	script_tags  = driver.find_elements_by_tag_name('script')
-	videoinfosource  = ""
-	for script_tag in script_tags:
-		scriptsrc =  script_tag.get_attribute('src')
-		if urltomatchforscrape in scriptsrc:
-			videoinfosource = scriptsrc
-	videoinfosource = videoinfosource.split("?",1)[0]		
-	finalvideosource = getactualvideolink(videoinfosource)	
+	try:
+		driver.get(urltoscrape)
+		script_tags  = driver.find_elements_by_tag_name('script')
+		videoinfosource  = ""
+		for script_tag in script_tags:
+			scriptsrc =  script_tag.get_attribute('src')
+			if urltomatchforscrape in scriptsrc:
+				videoinfosource = scriptsrc
+		videoinfosource = videoinfosource.split("?",1)[0]		
+		finalvideosource = getactualvideolink(videoinfosource)	
+	except Exception,e:
+			print(e)
+			finalvideosource = False
 	driver.close()	
 	return finalvideosource
 	
@@ -64,31 +66,50 @@ def getAllSearchResults():
 	htmltree = html.fromstring(page.content)
 	urls = htmltree.xpath('//a[contains(@title,("View video of this presentation"))]')
 	### anchor tag with the title  View video  href
-	for url in urls:
+	for index,url in enumerate(urls):
 		videosource =  searchurl.split("TSCSearchResults.asp")[0]+""+url.attrib['href']
 		casenamewithid =  url.text.split("- view video")[0]
 		caseid = casenamewithid[casenamewithid.find("(")+1:casenamewithid.find(")")]
-		caseObject = CaseInfo(caseid,casenamewithid,videosource)
+		caseObject = CaseInfo(caseid,casenamewithid,videosource,False)
 		cases.append(caseObject)
 	return cases	
 
 
 def main():
    	cases = getAllSearchResults()
-   	f = open('scctexas.html','w')
-   	htmltexttowrite = "<html><head></head><body><table style='border: 2px solid #CCC;width:100%'>"
    	for idx, case in enumerate(cases):
-	   		seconds = 2 + (random.random() * 2)
-			time.sleep(seconds)
-	   		case.videourl = getvideosourceinfo(case.videourl)###getvideosourceinfo(chromedriverlocation,case.videourl,urltomatchforscrape)
-   	htmltexttowrite = htmltexttowrite+"<tr><th style='width:10%'>Case No</th><th style='width:40%'>Case Name</th><th style='width:40%'>Video URL</th></tr>"
-   	for case in cases:
-		htmltexttowrite = htmltexttowrite + "<tr><td style='border: 2px solid #CCC;'>"+case.caseid+"</td><td style='border: 2px solid #CCC;'>"+case.casename+'</td><td style="border: 2px solid #CCC;"><a href="'+case.videourl[1:-1]+'" title="See Video">'+case.videourl[1:-1]+"</a></td></tr>"
-	###	f.write(case.caseid+":"+case.casename+":"+case.videourl+'\n') # python will convert \n to os.linesep
-	htmltexttowrite = htmltexttowrite + "</table></body></html>"
-	f.write(htmltexttowrite.encode('utf8'))
+		with open('casedetailfiles.txt','a') as casedetsf:
+			casedetsf.write((case.caseid+"##"+case.casename+"##"+case.videourl+"##nope\n").encode('utf8'))  	
+	alreadyprocessedcases=[]
+	if os.path.isfile('casedetailstatus.txt'):
+		with open('casedetailstatus.txt','r') as casedetsstatusread:
+			alreadycaseslines = casedetsstatusread.readlines()
+			for alreadycasesline in alreadycaseslines:
+			 	alreadyprocessedcases.append(alreadycasesline.split("##")[0])
+
+
+
+
+	allreadlines = []		
+	with open('casedetailfiles.txt','r+') as casedetsread:
+		allreadlines = casedetsread.readlines()
+		iteratelines = allreadlines
+		for index,line in enumerate(iteratelines):		
+			casedetsarr = line.split("##")
+			if(not casedetsarr[0] in alreadyprocessedcases):
+				flag = getvideosourceinfo(casedetsarr[2])
+		   		finalvideourl = casedetsarr[2]	   			
+		   		if(flag != False):
+		   			finalvideourl = flag
+					allreadlines[index] = line.split("##")[0]+"##"+line.split("##")[1]+"##"+finalvideourl+"##done\n"
+					with open('casedetailstatus.txt','a') as casedetsmodify:
+						casedetsmodify.write((allreadlines[index]))
+				else:
+					allreadlines[index] = line.split("##")[0]+"##"+line.split("##")[1]+"##"+line.split("##")[2]+"##broken\n"	
+				
+					
+	
+	  
 main()
 
 
-
-###http://www.texasbarcle.com/CLE/TSCPlayVideo.asp?sCaseNo=15-0029
