@@ -76,10 +76,17 @@ def getAllSearchResults():
 
 
 def main():
+   	"""
    	cases = getAllSearchResults()
    	for idx, case in enumerate(cases):
 		with open('casedetailfiles.txt','a') as casedetsf:
 			casedetsf.write((case.caseid+"##"+case.casename+"##"+case.videourl+"##nope\n").encode('utf8'))  	
+	"""
+
+
+
+
+
 	alreadyprocessedcases=[]
 	if os.path.isfile('casedetailstatus.txt'):
 		with open('casedetailstatus.txt','r') as casedetsstatusread:
@@ -96,7 +103,7 @@ def main():
 		iteratelines = allreadlines
 		for index,line in enumerate(iteratelines):		
 			casedetsarr = line.split("##")
-			if(not casedetsarr[0] in alreadyprocessedcases):
+			if((len(casedetsarr)>=3)  and not casedetsarr[0] in alreadyprocessedcases):
 				flag = getvideosourceinfo(casedetsarr[2])
 		   		finalvideourl = casedetsarr[2]	   			
 		   		if(flag != False):
